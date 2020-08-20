@@ -20,39 +20,6 @@
  *
  *   - P2.3 MCAN Interrupt 1 / nINT
  *   - Ground wire is important
- *
- *
- *
- * Copyright (c) 2019 Texas Instruments Incorporated.  All rights reserved.
- * Software License Agreement
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * Redistributions of source code must retain the above copyright
- * notice, this list of conditions and the following disclaimer.
- *
- * Redistributions in binary form must reproduce the above copyright
- * notice, this list of conditions and the following disclaimer in the
- * documentation and/or other materials provided with the
- * distribution.
- *
- * Neither the name of Texas Instruments Incorporated nor the names of
- * its contributors may be used to endorse or promote products derived
- * from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "stm32f10x.h"
@@ -88,7 +55,9 @@
 
 #define RCC_INT_RX_IN      RCC_APB2Periph_GPIOC
 #define PORT_INT_RX_IN		 GPIOC
-
+#define CANIF_MAX_CAN_DATA   64
+#define CANIF_MAX_CANFD_DATA   64
+#define CANIF_MAX_CANSTD_DATA     8
 
 
 // Interrupts
@@ -108,6 +77,8 @@ void Init_CAN(void);
 
 volatile uint8_t TCAN_Int_Cnt = 0;					// A variable used to keep track of interrupts the MCAN Interrupt pin
 uint8_t tx_led_blink_flag = 0;
+uint16_t g_RxCount =0;
+uint8_t  g_RxFifo[CANIF_MAX_CANFD_DATA];
 
 //LED1 处理程序
 void Blink_Led_Process(void)
@@ -129,12 +100,11 @@ void Blink_Led_Process(void)
 
 
 			
-
-int
-main(void)
+uint32_t id_test=0;
+int main(void)
 {
 	uint32_t times=10000;
-	uint32_t id_test=0;
+
 	
 	SET_RST_HIGH();
 	while(times--);//上电等待一会
@@ -170,8 +140,8 @@ main(void)
 
 	/* Define the CAN message we want to send*/
 	TCAN4x5x_MCAN_TX_Header header = {0};			// Remember to initialize to 0, or you'll get random garbage!
-	uint8_t data[4] = {0x55, 0x66, 0x77, 0x88};		// Define the data payload
-	header.DLC = MCAN_DLC_4B;						// Set the DLC to be equal to or less than the data payload (it is ok to pass a 64 byte data array into the WriteTXFIFO function if your DLC is 8 bytes, only the first 8 bytes will be read)
+	uint8_t data[8] = {0x55, 0x66, 0x77, 0x88};		// Define the data payload
+	header.DLC = MCAN_DLC_8B;						// Set the DLC to be equal to or less than the data payload (it is ok to pass a 64 byte data array into the WriteTXFIFO function if your DLC is 8 bytes, only the first 8 bytes will be read)
 	header.ID = 0x144;								// Set the ID
 	header.FDF = 1;									// CAN FD frame enabled
 	header.BRS = 1;									// Bit rate switch enabled
@@ -191,7 +161,7 @@ main(void)
 	data[2] = 0x33;
 	data[3] = 0x44;									// Define the data payload
 
-	header.DLC = MCAN_DLC_4B;						// Set the DLC to be equal to or less than the data payload (it is ok to pass a 64 byte data array into the WriteTXFIFO function if your DLC is 8 bytes, only the first 8 bytes will be read)
+	header.DLC = MCAN_DLC_8B;						// Set the DLC to be equal to or less than the data payload (it is ok to pass a 64 byte data array into the WriteTXFIFO function if your DLC is 8 bytes, only the first 8 bytes will be read)
 	header.ID = 0x123;								// Set the ID
 	header.FDF = 1;									// CAN FD frame enabled
 	header.BRS = 1;									// Bit rate switch enabled
@@ -221,16 +191,14 @@ main(void)
 
 			if (dev_ir.SPIERR)                                  // If the SPIERR flag is set
 			    TCAN4x5x_Device_ClearSPIERR();                  // Clear the SPIERR flag
-
-			if (mcan_ir.RF0N)									// If a new message in RX FIFO 0
-			{
+			if (mcan_ir.RF0W || mcan_ir.RF0F){//RF0N	if (mcan_ir.RF0N)		// If a new message in RX FIFO 0
 				TCAN4x5x_MCAN_RX_Header MsgHeader = {0};		// Initialize to 0 or you'll get garbage
-				uint8_t numBytes = 0;                           // Used since the ReadNextFIFO function will return how many bytes of data were read
+				uint8_t ret = CANIF_MAX_CANSTD_DATA;                           // Used since the ReadNextFIFO function will return how many bytes of data were read
 				uint8_t dataPayload[64] = {0};                  // Used to store the received data
 
-				TCAN4x5x_MCAN_ClearInterrupts(&mcan_ir);	    // Clear any of the interrupt bits that are set.
-
-				numBytes = TCAN4x5x_MCAN_ReadNextFIFO( RXFIFO0, &MsgHeader, dataPayload);	// This will read the next element in the RX FIFO 0
+				while(ret >= CANIF_MAX_CANSTD_DATA){
+					TCAN4x5x_MCAN_ClearInterrupts(&mcan_ir);	    // Clear any of the interrupt bits that are set.
+					ret = TCAN4x5x_MCAN_ReadNextFIFO( RXFIFO0, &MsgHeader, dataPayload);	// This will read the next element in the RX FIFO 0
 
 				// numBytes will have the number of bytes it transfered in it. Or you can decode the DLC value in MsgHeader.DLC
 				// The data is now in dataPayload[], and message specific information is in the MsgHeader struct.
@@ -245,8 +213,10 @@ main(void)
 						LED_Off(LED0);
 					}
 					// Do something
-				}
-			}
+				}//end ID
+				
+			}//while
+		}
 		}
 	}
 }
@@ -353,13 +323,13 @@ Init_CAN(void)
 	if (dev_ir.PWRON)                                           // If the Power On interrupt flag is set
 		TCAN4x5x_Device_ClearInterrupts(&dev_ir);               // Clear it because if it's not cleared within ~4 minutes, it goes to sleep
 
-//设置波特率1M 8M
-	TCAN4x5x_Set_Baudrate(1000,8000);
+//设置波特率500KB classic CAN not CAN FD
+	TCAN4x5x_Set_Baudrate(500,500);
 
 	/* Configure the MCAN core settings */
 	TCAN4x5x_MCAN_CCCR_Config cccrConfig = {0};					// Remember to initialize to 0, or you'll get random garbage!
-	cccrConfig.FDOE = 1;										// CAN FD mode enable
-	cccrConfig.BRSE = 1;										// CAN FD Bit rate switch enable
+	cccrConfig.FDOE = 0;//1										// CAN FD mode enable
+	cccrConfig.BRSE = 0;//1										// CAN FD Bit rate switch enable
 
 	/* Configure the default CAN packet filtering settings */
 	TCAN4x5x_MCAN_Global_Filter_Configuration gfc = {0};
@@ -386,11 +356,11 @@ Init_CAN(void)
 	TCAN4x5x_MRAM_Config MRAMConfiguration = {0};
 	MRAMConfiguration.SIDNumElements = 1;						// Standard ID number of elements, you MUST have a filter written to MRAM for each element defined
 	MRAMConfiguration.XIDNumElements = 1;						// Extended ID number of elements, you MUST have a filter written to MRAM for each element defined
-	MRAMConfiguration.Rx0NumElements = 5;						// RX0 Number of elements
+	MRAMConfiguration.Rx0NumElements = 64;						// RX0 Number of elements
 	MRAMConfiguration.Rx0ElementSize = MRAM_64_Byte_Data;		// RX0 data payload size
 	MRAMConfiguration.Rx1NumElements = 0;						// RX1 number of elements
 	MRAMConfiguration.Rx1ElementSize = MRAM_64_Byte_Data;		// RX1 data payload size
-	MRAMConfiguration.RxBufNumElements = 0;						// RX buffer number of elements
+	MRAMConfiguration.RxBufNumElements = 64;						// RX buffer number of elements
 	MRAMConfiguration.RxBufElementSize = MRAM_64_Byte_Data;		// RX buffer data payload size
 	MRAMConfiguration.TxEventFIFONumElements = 0;				// TX Event FIFO number of elements
 	MRAMConfiguration.TxBufferNumElements = 2;					// TX buffer number of elements
@@ -412,8 +382,9 @@ Init_CAN(void)
 
 	/* Set the interrupts we want to enable for MCAN */
 	TCAN4x5x_MCAN_Interrupt_Enable mcan_ie = {0};				// Remember to initialize to 0, or you'll get random garbage!
-	mcan_ie.RF0NE = 1;											// RX FIFO 0 new message interrupt enable
-
+	//mcan_ie.RF0NE = 0;											// RX FIFO 0 new message interrupt enable
+	mcan_ie.RF0WE = 1;
+	mcan_ie.RF0FE =1;
 	TCAN4x5x_MCAN_ConfigureInterruptEnable(&mcan_ie);			// Enable the appropriate registers
 
 

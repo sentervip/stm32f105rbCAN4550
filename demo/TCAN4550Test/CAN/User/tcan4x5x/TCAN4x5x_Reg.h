@@ -651,6 +651,6 @@
 //Reserved											0x00000200
 #define REG_BITS_DEVICE_IE_CANDOM					0x00000100
 // Reserved											0x80-00
-#define REG_BITS_DEVICE_IE_MASK                     0xFF69D700
+#define REG_BITS_DEVICE_IE_MASK                     0x7F69D700 //! This mask is the bitwise-inverse of the 0x0830 IE register's reserved bits. A reserved bit is read as high always. This masks the reserved bits out.
 
 #endif /* TCAN4X5X_REG_H_ */

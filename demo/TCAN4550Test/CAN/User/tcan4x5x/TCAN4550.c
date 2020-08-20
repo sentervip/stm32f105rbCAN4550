@@ -647,6 +647,7 @@ TCAN4x5x_MRAM_Configure(TCAN4x5x_MRAM_Config *MRAMConfig)
         registerValue |= REG_BITS_MCAN_RXF0C_F0OM_OVERWRITE;                            // Also enable overwrite mode when FIFO is full
     }
     startAddress += (((uint32_t)TCAN4x5x_MCAN_TXRXESC_DataByteValue((uint8_t)MRAMConfig->Rx0ElementSize) + 8) * (uint16_t)MRAMValue);
+    registerValue |= (8 << 24); // set water mark by aizj
     AHB_WRITE_32(REG_MCAN_RXF0C, registerValue);
 #ifdef TCAN4x5x_MCAN_CACHE_CONFIGURATION
     TCAN4x5x_MCAN_CACHE[TCAN4x5x_MCAN_CACHE_RXF0C] = registerValue;
