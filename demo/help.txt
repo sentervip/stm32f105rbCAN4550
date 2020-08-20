@@ -1,0 +1,7 @@
+1.CAN底板硬件检测程序
+CAN1和CAN2硬件测试:CAN1和CAN2连接好，波特率125K ，S1按下CAN1发，CAN2收；S2按下 CAN2发，CAN1收
+按键的测试：S1按下，LED1闪烁；S2按下LED2闪；S3按下，LED3闪；S4按下，LED4闪
+ttl串口的测试：S3和S4按下，TTL串口会往外发送0x55，波特率19200
+
+2.CANFD-TCAN4550
+stm32f105 CAN FD 收发测试程序

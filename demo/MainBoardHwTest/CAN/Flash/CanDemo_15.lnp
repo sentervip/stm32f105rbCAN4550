@@ -1,0 +1,14 @@
+--cpu Cortex-M3
+".\flash\system_stm32f10x.o"
+".\flash\startup_stm32f10x_cl.o"
+".\flash\can.o"
+".\flash\candemo.o"
+".\flash\misc.o"
+".\flash\stm32f10x_can.o"
+".\flash\stm32f10x_gpio.o"
+".\flash\stm32f10x_rcc.o"
+".\flash\stm32f10x_usart.o"
+--library_type=microlib --scatter ".\Flash\CanDemo_15.sct"
+--summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list ".\Flash\CanDemo_15.map" -o .\Flash\CanDemo_15.axf
